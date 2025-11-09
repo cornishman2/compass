@@ -62,7 +62,7 @@
             background: #f5f5f5;
             padding: 10px;
             border-radius: 5px;
-            max-height: 150px;
+            max-height: 200px;
             overflow-y: auto;
         }
         
@@ -97,7 +97,6 @@
             border: none;
             border-radius: 10px;
             cursor: pointer;
-            display: none;
         }
         
         button:active {
@@ -107,12 +106,12 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Compass 9:46</h1>
+        <h1>📱 Compass 9:50</h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
         <div id="debug"></div>
         <div id="status" class="status-waiting">Initializing compass...</div>
-        <button id="requestBtn">Enable Compass</button>
+        <button id="requestBtn" style="display:none;">Enable Compass</button>
     </div>
 
     <script>
@@ -123,8 +122,6 @@
         const requestBtn = document.getElementById('requestBtn');
         
         let isActive = false;
-        let smoothedHeading = null;
-        const smoothingFactor = 0.3; // Lower = more smoothing
 
         function getDirection(heading) {
             const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -132,109 +129,130 @@
             return directions[index];
         }
 
-        function smoothHeading(newHeading) {
-            if (smoothedHeading === null) {
-                smoothedHeading = newHeading;
-                return newHeading;
+        function compassHeading(alpha, beta, gamma) {
+            // Convert degrees to radians
+            const alphaRad = alpha * (Math.PI / 180);
+            const betaRad = beta * (Math.PI / 180);
+            const gammaRad = gamma * (Math.PI / 180);
+
+            // Calculate heading based on device orientation
+            // This formula accounts for the phone's tilt
+            const cA = Math.cos(alphaRad);
+            const sA = Math.sin(alphaRad);
+            const cB = Math.cos(betaRad);
+            const sB = Math.sin(betaRad);
+            const cG = Math.cos(gammaRad);
+            const sG = Math.sin(gammaRad);
+
+            // Calculate the compass direction
+            const rA = -cA * sG - sA * sB * cG;
+            const rB = -sA * sG + cA * sB * cG;
+
+            // Calculate heading
+            let heading = Math.atan2(rA, rB) * (180 / Math.PI);
+            
+            // Normalize to 0-360
+            if (heading < 0) {
+                heading += 360;
             }
+
+            return heading;
+        }
+
+        function handleOrientationAbsolute(e) {
+            if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            // Handle wraparound (e.g., 359° to 1°)
-            let diff = newHeading - smoothedHeading;
-            if (diff > 180) diff -= 360;
-            if (diff < -180) diff += 360;
+            const heading = compassHeading(e.alpha, e.beta, e.gamma);
             
-            smoothedHeading += diff * smoothingFactor;
-            if (smoothedHeading < 0) smoothedHeading += 360;
-            if (smoothedHeading >= 360) smoothedHeading -= 360;
+            debugEl.innerHTML = `
+                Event: deviceorientationabsolute<br>
+                absolute: ${e.absolute}<br>
+                alpha: ${e.alpha.toFixed(1)}°<br>
+                beta: ${e.beta.toFixed(1)}°<br>
+                gamma: ${e.gamma.toFixed(1)}°<br>
+                ---<br>
+                Calculated heading: ${heading.toFixed(1)}°
+            `;
             
-            return smoothedHeading;
+            headingEl.textContent = Math.round(heading) + '°';
+            directionEl.textContent = getDirection(heading);
+            
+            if (!isActive) {
+                isActive = true;
+                statusEl.textContent = 'Compass active (Absolute)';
+                statusEl.className = 'status-active';
+            }
         }
 
         function handleOrientation(e) {
-            let rawAlpha = e.alpha;
-            let rawBeta = e.beta;
-            let rawGamma = e.gamma;
+            if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            // Build debug info
-            let debugInfo = `Event: ${e.type}<br>`;
-            debugInfo += `absolute: ${e.absolute}<br>`;
-            debugInfo += `alpha: ${rawAlpha !== null ? rawAlpha.toFixed(1) : 'null'}<br>`;
-            debugInfo += `beta: ${rawBeta !== null ? rawBeta.toFixed(1) : 'null'}<br>`;
-            debugInfo += `gamma: ${rawGamma !== null ? rawGamma.toFixed(1) : 'null'}<br>`;
-            debugInfo += `webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}`;
+            const heading = compassHeading(e.alpha, e.beta, e.gamma);
             
-            let heading = null;
-            let method = '';
+            debugEl.innerHTML = `
+                Event: deviceorientation<br>
+                absolute: ${e.absolute}<br>
+                alpha: ${e.alpha.toFixed(1)}°<br>
+                beta: ${e.beta.toFixed(1)}°<br>
+                gamma: ${e.gamma.toFixed(1)}°<br>
+                webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}<br>
+                ---<br>
+                Calculated heading: ${heading.toFixed(1)}°
+            `;
             
+            // Prefer webkitCompassHeading if available
+            let finalHeading = heading;
             if (e.webkitCompassHeading !== undefined) {
-                // iOS devices - this is the true compass heading
-                heading = e.webkitCompassHeading;
-                method = 'iOS';
-            } else if (e.absolute && rawAlpha !== null) {
-                // Absolute orientation - should be true compass heading
-                heading = rawAlpha;
-                method = 'Absolute';
-            } else if (rawAlpha !== null) {
-                // Relative orientation - alpha decreases clockwise, so invert it
-                // This makes heading increase clockwise as expected
-                heading = 360 - rawAlpha;
-                if (heading >= 360) heading -= 360;
-                method = 'Relative (inverted)';
+                finalHeading = e.webkitCompassHeading;
             }
             
-            if (heading !== null) {
-                const smoothed = smoothHeading(heading);
-                
-                debugInfo += `<br>---<br>Raw heading: ${heading.toFixed(1)}°<br>`;
-                debugInfo += `Smoothed: ${smoothed.toFixed(1)}°<br>`;
-                debugInfo += `Method: ${method}`;
-                
-                headingEl.textContent = Math.round(smoothed) + '°';
-                directionEl.textContent = getDirection(smoothed);
-                
-                if (!isActive) {
-                    isActive = true;
-                    statusEl.textContent = `Compass active (${method})`;
-                    statusEl.className = 'status-active';
-                }
-            }
+            headingEl.textContent = Math.round(finalHeading) + '°';
+            directionEl.textContent = getDirection(finalHeading);
             
-            debugEl.innerHTML = debugInfo;
+            if (!isActive) {
+                isActive = true;
+                statusEl.textContent = e.webkitCompassHeading !== undefined ? 
+                    'Compass active (iOS)' : 'Compass active (Calculated)';
+                statusEl.className = 'status-active';
+            }
         }
 
         function initCompass() {
-            if (typeof DeviceOrientationEvent !== 'undefined') {
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    requestBtn.style.display = 'block';
-                    statusEl.textContent = 'Permission required - tap button below';
-                    statusEl.className = 'status-waiting';
-                    
-                    requestBtn.addEventListener('click', function() {
-                        DeviceOrientationEvent.requestPermission()
-                            .then(response => {
-                                if (response === 'granted') {
-                                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-                                    window.addEventListener('deviceorientation', handleOrientation, true);
-                                    requestBtn.style.display = 'none';
-                                    statusEl.textContent = 'Waiting for sensor data...';
-                                } else {
-                                    statusEl.textContent = 'Permission denied';
-                                    statusEl.className = 'status-error';
-                                }
-                            })
-                            .catch(err => {
-                                statusEl.textContent = 'Error: ' + err.message;
-                                statusEl.className = 'status-error';
-                            });
-                    });
-                } else {
-                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-                    window.addEventListener('deviceorientation', handleOrientation, true);
-                    statusEl.textContent = 'Waiting for sensor data...';
-                }
-            } else {
+            debugEl.innerHTML = 'Checking for sensors...<br>';
+            
+            if (typeof DeviceOrientationEvent === 'undefined') {
                 statusEl.textContent = 'Device orientation not supported';
                 statusEl.className = 'status-error';
+                return;
+            }
+            
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                requestBtn.style.display = 'block';
+                statusEl.textContent = 'Permission required - tap button below';
+                statusEl.className = 'status-waiting';
+                
+                requestBtn.addEventListener('click', function() {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(response => {
+                            if (response === 'granted') {
+                                window.addEventListener('deviceorientationabsolute', handleOrientationAbsolute, true);
+                                window.addEventListener('deviceorientation', handleOrientation, true);
+                                requestBtn.style.display = 'none';
+                                statusEl.textContent = 'Waiting for sensor data...';
+                            } else {
+                                statusEl.textContent = 'Permission denied';
+                                statusEl.className = 'status-error';
+                            }
+                        })
+                        .catch(err => {
+                            statusEl.textContent = 'Error: ' + err.message;
+                            statusEl.className = 'status-error';
+                        });
+                });
+            } else {
+                window.addEventListener('deviceorientationabsolute', handleOrientationAbsolute, true);
+                window.addEventListener('deviceorientation', handleOrientation, true);
+                statusEl.textContent = 'Waiting for sensor data...';
             }
         }
 
