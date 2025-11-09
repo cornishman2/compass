@@ -106,7 +106,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Compass 2:56</h1>
+        <h1>📱 Compass</h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
         <div id="debug"></div>
@@ -130,7 +130,19 @@
         }
 
         function compassHeading(alpha, beta, gamma, absolute) {
-            // Always use 3D calculation - it works for all orientations
+            // For phone held flat (beta near 0), use alpha directly if absolute
+            if (absolute && Math.abs(beta) < 30) {
+                return alpha;
+            }
+            
+            // For relative orientation, invert alpha (it decreases clockwise)
+            if (!absolute) {
+                let heading = 360 - alpha;
+                if (heading >= 360) heading -= 360;
+                return heading;
+            }
+            
+            // If not flat or not absolute, try 3D calculation
             const alphaRad = alpha * (Math.PI / 180);
             const betaRad = beta * (Math.PI / 180);
             const gammaRad = gamma * (Math.PI / 180);
@@ -166,7 +178,7 @@
                 gamma: ${e.gamma.toFixed(1)}°<br>
                 ---<br>
                 Calculated heading: ${heading.toFixed(1)}°<br>
-                Method: 3D calculation
+                Method: ${e.absolute && Math.abs(e.beta) < 30 ? 'Direct alpha' : (e.absolute ? '3D calc' : 'Inverted')}
             `;
             
             headingEl.textContent = Math.round(heading) + '°';
@@ -193,7 +205,7 @@
                 webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}<br>
                 ---<br>
                 Calculated heading: ${heading.toFixed(1)}°<br>
-                Method: 3D calculation
+                Method: ${e.absolute && Math.abs(e.beta) < 30 ? 'Direct alpha' : (e.absolute ? '3D calc' : 'Inverted')}
             `;
             
             // Prefer webkitCompassHeading if available
