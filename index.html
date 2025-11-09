@@ -134,7 +134,8 @@
                 alpha: ${e.alpha !== null ? e.alpha.toFixed(1) : 'null'}<br>
                 beta: ${e.beta !== null ? e.beta.toFixed(1) : 'null'}<br>
                 gamma: ${e.gamma !== null ? e.gamma.toFixed(1) : 'null'}<br>
-                webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}
+                webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}<br>
+                absolute: ${e.absolute ? 'true' : 'false'}
             `;
             
             if (e.webkitCompassHeading !== undefined) {
@@ -148,9 +149,8 @@
                     statusEl.textContent = 'Compass active (iOS)';
                     statusEl.className = 'status-active';
                 }
-            } else if (e.alpha !== null) {
-                // Android and other devices
-                // Use alpha directly as compass heading
+            } else if (e.alpha !== null && e.absolute) {
+                // deviceorientationabsolute event - gives true compass heading
                 const heading = e.alpha;
                 
                 headingEl.textContent = Math.round(heading) + '°';
@@ -158,7 +158,19 @@
                 
                 if (!isActive) {
                     isActive = true;
-                    statusEl.textContent = 'Compass active (Android)';
+                    statusEl.textContent = 'Compass active (Absolute)';
+                    statusEl.className = 'status-active';
+                }
+            } else if (e.alpha !== null) {
+                // Fallback for relative orientation
+                const heading = e.alpha;
+                
+                headingEl.textContent = Math.round(heading) + '°';
+                directionEl.textContent = getDirection(heading);
+                
+                if (!isActive) {
+                    isActive = true;
+                    statusEl.textContent = 'Compass active (Relative)';
                     statusEl.className = 'status-active';
                 }
             }
@@ -176,6 +188,8 @@
                         DeviceOrientationEvent.requestPermission()
                             .then(response => {
                                 if (response === 'granted') {
+                                    // Try absolute first, fall back to regular
+                                    window.addEventListener('deviceorientationabsolute', handleOrientation);
                                     window.addEventListener('deviceorientation', handleOrientation);
                                     requestBtn.style.display = 'none';
                                     statusEl.textContent = 'Waiting for sensor data...';
@@ -191,6 +205,9 @@
                     });
                 } else {
                     // No permission needed (Android, older iOS)
+                    // Try absolute orientation first (gives true compass bearing)
+                    window.addEventListener('deviceorientationabsolute', handleOrientation);
+                    // Fallback to regular orientation
                     window.addEventListener('deviceorientation', handleOrientation);
                     statusEl.textContent = 'Waiting for sensor data...';
                 }
