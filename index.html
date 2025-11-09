@@ -106,7 +106,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Compass 15:24</h1>
+        <h1>📱 Compass 15:30</h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
         <div id="debug"></div>
@@ -122,11 +122,31 @@
         const requestBtn = document.getElementById('requestBtn');
         
         let isActive = false;
+        let smoothedHeading = null;
+        const smoothingFactor = 0.15; // Lower = more smoothing (0.15 = heavy smoothing)
 
         function getDirection(heading) {
             const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
             const index = Math.round(heading / 45) % 8;
             return directions[index];
+        }
+
+        function smoothHeading(newHeading) {
+            if (smoothedHeading === null) {
+                smoothedHeading = newHeading;
+                return newHeading;
+            }
+            
+            // Handle wraparound (e.g., 359° to 1°)
+            let diff = newHeading - smoothedHeading;
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+            
+            smoothedHeading += diff * smoothingFactor;
+            if (smoothedHeading < 0) smoothedHeading += 360;
+            if (smoothedHeading >= 360) smoothedHeading -= 360;
+            
+            return smoothedHeading;
         }
 
         function compassHeading(alpha, beta, gamma, absolute) {
@@ -156,7 +176,8 @@
         function handleOrientationAbsolute(e) {
             if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            const heading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
+            const rawHeading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
+            const heading = smoothHeading(rawHeading);
             
             debugEl.innerHTML = `
                 Event: deviceorientationabsolute<br>
@@ -165,7 +186,8 @@
                 beta: ${e.beta.toFixed(1)}°<br>
                 gamma: ${e.gamma.toFixed(1)}°<br>
                 ---<br>
-                Calculated heading: ${heading.toFixed(1)}°<br>
+                Raw heading: ${rawHeading.toFixed(1)}°<br>
+                Smoothed heading: ${heading.toFixed(1)}°<br>
                 Method: 3D calculation
             `;
             
@@ -182,7 +204,7 @@
         function handleOrientation(e) {
             if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            const heading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
+            const rawHeading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
             
             debugEl.innerHTML = `
                 Event: deviceorientation<br>
@@ -192,14 +214,16 @@
                 gamma: ${e.gamma.toFixed(1)}°<br>
                 webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}<br>
                 ---<br>
-                Calculated heading: ${heading.toFixed(1)}°<br>
+                Raw heading: ${rawHeading.toFixed(1)}°<br>
                 Method: 3D calculation
             `;
             
             // Prefer webkitCompassHeading if available
-            let finalHeading = heading;
+            let finalHeading = rawHeading;
             if (e.webkitCompassHeading !== undefined) {
                 finalHeading = e.webkitCompassHeading;
+            } else {
+                finalHeading = smoothHeading(rawHeading);
             }
             
             headingEl.textContent = Math.round(finalHeading) + '°';
