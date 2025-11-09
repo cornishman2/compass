@@ -53,6 +53,17 @@
             font-weight: 500;
         }
         
+        #debug {
+            font-size: 12px;
+            color: #999;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            text-align: left;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
         #status {
             margin-top: 20px;
             padding: 15px;
@@ -97,6 +108,7 @@
         <h1>📱 Compass</h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
+        <div id="debug"></div>
         <div id="status" class="status-waiting">Initializing compass...</div>
         <button id="requestBtn">Enable Compass</button>
     </div>
@@ -105,6 +117,7 @@
         const headingEl = document.getElementById('heading');
         const directionEl = document.getElementById('direction');
         const statusEl = document.getElementById('status');
+        const debugEl = document.getElementById('debug');
         const requestBtn = document.getElementById('requestBtn');
         
         let isActive = false;
@@ -116,6 +129,14 @@
         }
 
         function handleOrientation(e) {
+            // Show debug info
+            debugEl.innerHTML = `
+                alpha: ${e.alpha !== null ? e.alpha.toFixed(1) : 'null'}<br>
+                beta: ${e.beta !== null ? e.beta.toFixed(1) : 'null'}<br>
+                gamma: ${e.gamma !== null ? e.gamma.toFixed(1) : 'null'}<br>
+                webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}
+            `;
+            
             if (e.webkitCompassHeading !== undefined) {
                 // iOS devices
                 const heading = e.webkitCompassHeading;
@@ -124,22 +145,20 @@
                 
                 if (!isActive) {
                     isActive = true;
-                    statusEl.textContent = 'Compass active';
+                    statusEl.textContent = 'Compass active (iOS)';
                     statusEl.className = 'status-active';
                 }
             } else if (e.alpha !== null) {
                 // Android and other devices
-                // alpha gives rotation around z-axis (0-360)
-                // We need to convert: 0° = North, 90° = East, etc.
-                let heading = 360 - e.alpha;
-                if (heading >= 360) heading -= 360;
+                // Use alpha directly as compass heading
+                const heading = e.alpha;
                 
                 headingEl.textContent = Math.round(heading) + '°';
                 directionEl.textContent = getDirection(heading);
                 
                 if (!isActive) {
                     isActive = true;
-                    statusEl.textContent = 'Compass active';
+                    statusEl.textContent = 'Compass active (Android)';
                     statusEl.className = 'status-active';
                 }
             }
