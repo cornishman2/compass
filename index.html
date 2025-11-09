@@ -24,7 +24,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>📱 Compass 22:29</h1>
+    <h1>📱 Compass 22:40</h1>
     <div id="heading">---</div>
     <div id="direction">Point phone to target</div>
     <div id="arrow">↑</div>
@@ -95,10 +95,12 @@
         statusEl.className = "status-active";
         statusEl.textContent = "Compass active. Point at target.";
       }
-      ```
+    
       let targetBearing = null;
       let targetName = "Target";
       let gpsPosition = null;
+      let directionEl =  document.getElementById("direction");
+                        
 
       function updateDirection() {
         if (!orientationActive || targetBearing === null || smoothedHeading === null) {
