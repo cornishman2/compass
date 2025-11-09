@@ -106,7 +106,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Compass 9:50</h1>
+        <h1>📱 Compass 14:44 </h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
         <div id="debug"></div>
@@ -129,29 +129,35 @@
             return directions[index];
         }
 
-        function compassHeading(alpha, beta, gamma) {
-            // Convert degrees to radians
+        function compassHeading(alpha, beta, gamma, absolute) {
+            // For phone held flat (beta near 0), use alpha directly if absolute
+            if (absolute && Math.abs(beta) < 30) {
+                return alpha;
+            }
+            
+            // For relative orientation, invert alpha (it decreases clockwise)
+            if (!absolute) {
+                let heading = 360 - alpha;
+                if (heading >= 360) heading -= 360;
+                return heading;
+            }
+            
+            // If not flat or not absolute, try 3D calculation
             const alphaRad = alpha * (Math.PI / 180);
             const betaRad = beta * (Math.PI / 180);
             const gammaRad = gamma * (Math.PI / 180);
 
-            // Calculate heading based on device orientation
-            // This formula accounts for the phone's tilt
             const cA = Math.cos(alphaRad);
             const sA = Math.sin(alphaRad);
-            const cB = Math.cos(betaRad);
             const sB = Math.sin(betaRad);
             const cG = Math.cos(gammaRad);
             const sG = Math.sin(gammaRad);
 
-            // Calculate the compass direction
             const rA = -cA * sG - sA * sB * cG;
             const rB = -sA * sG + cA * sB * cG;
 
-            // Calculate heading
             let heading = Math.atan2(rA, rB) * (180 / Math.PI);
             
-            // Normalize to 0-360
             if (heading < 0) {
                 heading += 360;
             }
@@ -162,7 +168,7 @@
         function handleOrientationAbsolute(e) {
             if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            const heading = compassHeading(e.alpha, e.beta, e.gamma);
+            const heading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
             
             debugEl.innerHTML = `
                 Event: deviceorientationabsolute<br>
@@ -171,7 +177,8 @@
                 beta: ${e.beta.toFixed(1)}°<br>
                 gamma: ${e.gamma.toFixed(1)}°<br>
                 ---<br>
-                Calculated heading: ${heading.toFixed(1)}°
+                Calculated heading: ${heading.toFixed(1)}°<br>
+                Method: ${e.absolute && Math.abs(e.beta) < 30 ? 'Direct alpha' : (e.absolute ? '3D calc' : 'Inverted')}
             `;
             
             headingEl.textContent = Math.round(heading) + '°';
@@ -187,7 +194,7 @@
         function handleOrientation(e) {
             if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            const heading = compassHeading(e.alpha, e.beta, e.gamma);
+            const heading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
             
             debugEl.innerHTML = `
                 Event: deviceorientation<br>
@@ -197,7 +204,8 @@
                 gamma: ${e.gamma.toFixed(1)}°<br>
                 webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}<br>
                 ---<br>
-                Calculated heading: ${heading.toFixed(1)}°
+                Calculated heading: ${heading.toFixed(1)}°<br>
+                Method: ${e.absolute && Math.abs(e.beta) < 30 ? 'Direct alpha' : (e.absolute ? '3D calc' : 'Inverted')}
             `;
             
             // Prefer webkitCompassHeading if available
