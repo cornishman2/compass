@@ -54,7 +54,7 @@
         }
         
         #debug {
-            font-size: 12px;
+            font-size: 11px;
             color: #999;
             margin-top: 15px;
             font-family: 'Courier New', monospace;
@@ -62,6 +62,8 @@
             background: #f5f5f5;
             padding: 10px;
             border-radius: 5px;
+            max-height: 150px;
+            overflow-y: auto;
         }
         
         #status {
@@ -105,7 +107,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Compass 9:36</h1>
+        <h1>📱 Compass 9:46</h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
         <div id="debug"></div>
@@ -121,6 +123,8 @@
         const requestBtn = document.getElementById('requestBtn');
         
         let isActive = false;
+        let smoothedHeading = null;
+        const smoothingFactor = 0.3; // Lower = more smoothing
 
         function getDirection(heading) {
             const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -128,57 +132,78 @@
             return directions[index];
         }
 
+        function smoothHeading(newHeading) {
+            if (smoothedHeading === null) {
+                smoothedHeading = newHeading;
+                return newHeading;
+            }
+            
+            // Handle wraparound (e.g., 359° to 1°)
+            let diff = newHeading - smoothedHeading;
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+            
+            smoothedHeading += diff * smoothingFactor;
+            if (smoothedHeading < 0) smoothedHeading += 360;
+            if (smoothedHeading >= 360) smoothedHeading -= 360;
+            
+            return smoothedHeading;
+        }
+
         function handleOrientation(e) {
-            // Show debug info
-            debugEl.innerHTML = `
-                alpha: ${e.alpha !== null ? e.alpha.toFixed(1) : 'null'}<br>
-                beta: ${e.beta !== null ? e.beta.toFixed(1) : 'null'}<br>
-                gamma: ${e.gamma !== null ? e.gamma.toFixed(1) : 'null'}<br>
-                webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}<br>
-                absolute: ${e.absolute ? 'true' : 'false'}
-            `;
+            let rawAlpha = e.alpha;
+            let rawBeta = e.beta;
+            let rawGamma = e.gamma;
+            
+            // Build debug info
+            let debugInfo = `Event: ${e.type}<br>`;
+            debugInfo += `absolute: ${e.absolute}<br>`;
+            debugInfo += `alpha: ${rawAlpha !== null ? rawAlpha.toFixed(1) : 'null'}<br>`;
+            debugInfo += `beta: ${rawBeta !== null ? rawBeta.toFixed(1) : 'null'}<br>`;
+            debugInfo += `gamma: ${rawGamma !== null ? rawGamma.toFixed(1) : 'null'}<br>`;
+            debugInfo += `webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}`;
+            
+            let heading = null;
+            let method = '';
             
             if (e.webkitCompassHeading !== undefined) {
-                // iOS devices
-                const heading = e.webkitCompassHeading;
-                headingEl.textContent = Math.round(heading) + '°';
-                directionEl.textContent = getDirection(heading);
+                // iOS devices - this is the true compass heading
+                heading = e.webkitCompassHeading;
+                method = 'iOS';
+            } else if (e.absolute && rawAlpha !== null) {
+                // Absolute orientation - should be true compass heading
+                heading = rawAlpha;
+                method = 'Absolute';
+            } else if (rawAlpha !== null) {
+                // Relative orientation - alpha decreases clockwise, so invert it
+                // This makes heading increase clockwise as expected
+                heading = 360 - rawAlpha;
+                if (heading >= 360) heading -= 360;
+                method = 'Relative (inverted)';
+            }
+            
+            if (heading !== null) {
+                const smoothed = smoothHeading(heading);
+                
+                debugInfo += `<br>---<br>Raw heading: ${heading.toFixed(1)}°<br>`;
+                debugInfo += `Smoothed: ${smoothed.toFixed(1)}°<br>`;
+                debugInfo += `Method: ${method}`;
+                
+                headingEl.textContent = Math.round(smoothed) + '°';
+                directionEl.textContent = getDirection(smoothed);
                 
                 if (!isActive) {
                     isActive = true;
-                    statusEl.textContent = 'Compass active (iOS)';
-                    statusEl.className = 'status-active';
-                }
-            } else if (e.alpha !== null && e.absolute) {
-                // deviceorientationabsolute event - gives true compass heading
-                const heading = e.alpha;
-                
-                headingEl.textContent = Math.round(heading) + '°';
-                directionEl.textContent = getDirection(heading);
-                
-                if (!isActive) {
-                    isActive = true;
-                    statusEl.textContent = 'Compass active (Absolute)';
-                    statusEl.className = 'status-active';
-                }
-            } else if (e.alpha !== null) {
-                // Fallback for relative orientation
-                const heading = e.alpha;
-                
-                headingEl.textContent = Math.round(heading) + '°';
-                directionEl.textContent = getDirection(heading);
-                
-                if (!isActive) {
-                    isActive = true;
-                    statusEl.textContent = 'Compass active (Relative)';
+                    statusEl.textContent = `Compass active (${method})`;
                     statusEl.className = 'status-active';
                 }
             }
+            
+            debugEl.innerHTML = debugInfo;
         }
 
         function initCompass() {
             if (typeof DeviceOrientationEvent !== 'undefined') {
-                // Check if permission is needed (iOS 13+)
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                     requestBtn.style.display = 'block';
                     statusEl.textContent = 'Permission required - tap button below';
@@ -188,9 +213,8 @@
                         DeviceOrientationEvent.requestPermission()
                             .then(response => {
                                 if (response === 'granted') {
-                                    // Try absolute first, fall back to regular
-                                    window.addEventListener('deviceorientationabsolute', handleOrientation);
-                                    window.addEventListener('deviceorientation', handleOrientation);
+                                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                                    window.addEventListener('deviceorientation', handleOrientation, true);
                                     requestBtn.style.display = 'none';
                                     statusEl.textContent = 'Waiting for sensor data...';
                                 } else {
@@ -204,11 +228,8 @@
                             });
                     });
                 } else {
-                    // No permission needed (Android, older iOS)
-                    // Try absolute orientation first (gives true compass bearing)
-                    window.addEventListener('deviceorientationabsolute', handleOrientation);
-                    // Fallback to regular orientation
-                    window.addEventListener('deviceorientation', handleOrientation);
+                    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+                    window.addEventListener('deviceorientation', handleOrientation, true);
                     statusEl.textContent = 'Waiting for sensor data...';
                 }
             } else {
@@ -217,7 +238,6 @@
             }
         }
 
-        // Initialize on page load
         initCompass();
     </script>
 </body>
