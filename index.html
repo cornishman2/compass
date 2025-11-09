@@ -106,7 +106,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Compass 15:30</h1>
+        <h1>📱 Compass 15:36</h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
         <div id="debug"></div>
@@ -122,8 +122,8 @@
         const requestBtn = document.getElementById('requestBtn');
         
         let isActive = false;
-        let smoothedHeading = null;
-        const smoothingFactor = 0.15; // Lower = more smoothing (0.15 = heavy smoothing)
+        let headingHistory = [];
+        const historySize = 10; // Average over last 10 readings
 
         function getDirection(heading) {
             const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -132,21 +132,30 @@
         }
 
         function smoothHeading(newHeading) {
-            if (smoothedHeading === null) {
-                smoothedHeading = newHeading;
-                return newHeading;
+            headingHistory.push(newHeading);
+            if (headingHistory.length > historySize) {
+                headingHistory.shift();
             }
             
-            // Handle wraparound (e.g., 359° to 1°)
-            let diff = newHeading - smoothedHeading;
-            if (diff > 180) diff -= 360;
-            if (diff < -180) diff += 360;
+            // Convert to vectors to handle wraparound correctly
+            let sinSum = 0;
+            let cosSum = 0;
             
-            smoothedHeading += diff * smoothingFactor;
-            if (smoothedHeading < 0) smoothedHeading += 360;
-            if (smoothedHeading >= 360) smoothedHeading -= 360;
+            for (let h of headingHistory) {
+                const rad = h * (Math.PI / 180);
+                sinSum += Math.sin(rad);
+                cosSum += Math.cos(rad);
+            }
             
-            return smoothedHeading;
+            // Average the vectors
+            const avgRad = Math.atan2(sinSum, cosSum);
+            let avgHeading = avgRad * (180 / Math.PI);
+            
+            if (avgHeading < 0) {
+                avgHeading += 360;
+            }
+            
+            return avgHeading;
         }
 
         function compassHeading(alpha, beta, gamma, absolute) {
