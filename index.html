@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Compass</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        #heading {
+            font-size: 72px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #direction {
+            font-size: 24px;
+            color: #666;
+            margin: 20px 0;
+            font-weight: 500;
+        }
+        
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        
+        .status-waiting {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        button {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            display: none;
+        }
+        
+        button:active {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Compass</h1>
+        <div id="heading">---</div>
+        <div id="direction">---</div>
+        <div id="status" class="status-waiting">Initializing compass...</div>
+        <button id="requestBtn">Enable Compass</button>
+    </div>
+
+    <script>
+        const headingEl = document.getElementById('heading');
+        const directionEl = document.getElementById('direction');
+        const statusEl = document.getElementById('status');
+        const requestBtn = document.getElementById('requestBtn');
+        
+        let isActive = false;
+
+        function getDirection(heading) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const index = Math.round(heading / 45) % 8;
+            return directions[index];
+        }
+
+        function handleOrientation(e) {
+            if (e.webkitCompassHeading !== undefined) {
+                // iOS devices
+                const heading = e.webkitCompassHeading;
+                headingEl.textContent = Math.round(heading) + '°';
+                directionEl.textContent = getDirection(heading);
+                
+                if (!isActive) {
+                    isActive = true;
+                    statusEl.textContent = 'Compass active';
+                    statusEl.className = 'status-active';
+                }
+            } else if (e.alpha !== null) {
+                // Android and other devices
+                // alpha gives rotation around z-axis (0-360)
+                // We need to convert: 0° = North, 90° = East, etc.
+                let heading = 360 - e.alpha;
+                if (heading >= 360) heading -= 360;
+                
+                headingEl.textContent = Math.round(heading) + '°';
+                directionEl.textContent = getDirection(heading);
+                
+                if (!isActive) {
+                    isActive = true;
+                    statusEl.textContent = 'Compass active';
+                    statusEl.className = 'status-active';
+                }
+            }
+        }
+
+        function initCompass() {
+            if (typeof DeviceOrientationEvent !== 'undefined') {
+                // Check if permission is needed (iOS 13+)
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    requestBtn.style.display = 'block';
+                    statusEl.textContent = 'Permission required - tap button below';
+                    statusEl.className = 'status-waiting';
+                    
+                    requestBtn.addEventListener('click', function() {
+                        DeviceOrientationEvent.requestPermission()
+                            .then(response => {
+                                if (response === 'granted') {
+                                    window.addEventListener('deviceorientation', handleOrientation);
+                                    requestBtn.style.display = 'none';
+                                    statusEl.textContent = 'Waiting for sensor data...';
+                                } else {
+                                    statusEl.textContent = 'Permission denied';
+                                    statusEl.className = 'status-error';
+                                }
+                            })
+                            .catch(err => {
+                                statusEl.textContent = 'Error: ' + err.message;
+                                statusEl.className = 'status-error';
+                            });
+                    });
+                } else {
+                    // No permission needed (Android, older iOS)
+                    window.addEventListener('deviceorientation', handleOrientation);
+                    statusEl.textContent = 'Waiting for sensor data...';
+                }
+            } else {
+                statusEl.textContent = 'Device orientation not supported';
+                statusEl.className = 'status-error';
+            }
+        }
+
+        // Initialize on page load
+        initCompass();
+    </script>
+</body>
+</html>
