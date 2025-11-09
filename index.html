@@ -106,7 +106,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>📱 Compass 15:05</h1>
+        <h1>📱 Compass 15:12</h1>
         <div id="heading">---</div>
         <div id="direction">---</div>
         <div id="debug"></div>
@@ -168,7 +168,7 @@
         function handleOrientationAbsolute(e) {
             if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            const heading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
+            const heading = compassHeading(e.alpha, e.beta, e.gamma);
             
             debugEl.innerHTML = `
                 Event: deviceorientationabsolute<br>
@@ -177,8 +177,7 @@
                 beta: ${e.beta.toFixed(1)}°<br>
                 gamma: ${e.gamma.toFixed(1)}°<br>
                 ---<br>
-                Calculated heading: ${heading.toFixed(1)}°<br>
-                Method: ${e.absolute && Math.abs(e.beta) < 30 ? 'Direct alpha' : (e.absolute ? '3D calc' : 'Inverted')}
+                Calculated heading: ${heading.toFixed(1)}°
             `;
             
             headingEl.textContent = Math.round(heading) + '°';
@@ -194,7 +193,7 @@
         function handleOrientation(e) {
             if (e.alpha === null || e.beta === null || e.gamma === null) return;
             
-            const heading = compassHeading(e.alpha, e.beta, e.gamma, e.absolute);
+            const heading = compassHeading(e.alpha, e.beta, e.gamma);
             
             debugEl.innerHTML = `
                 Event: deviceorientation<br>
@@ -204,8 +203,7 @@
                 gamma: ${e.gamma.toFixed(1)}°<br>
                 webkitHeading: ${e.webkitCompassHeading !== undefined ? e.webkitCompassHeading.toFixed(1) : 'N/A'}<br>
                 ---<br>
-                Calculated heading: ${heading.toFixed(1)}°<br>
-                Method: ${e.absolute && Math.abs(e.beta) < 30 ? 'Direct alpha' : (e.absolute ? '3D calc' : 'Inverted')}
+                Calculated heading: ${heading.toFixed(1)}°
             `;
             
             // Prefer webkitCompassHeading if available
