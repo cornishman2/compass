@@ -115,9 +115,6 @@
     </div>
 
     <script>
-  Here's *Part 1/3* of the JavaScript code. Copy and paste this, then let me know when you're ready for Part 2 😊.
-
-```
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY = "metal_finder_v5_data";
   
@@ -180,9 +177,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function save(noToast) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); if (!noToast) showToast("💾 Saved"); }
   function showToast(msg) { if (!toast) return; toast.textContent = msg; toast.style.display = "block"; clearTimeout(toast._t); toast._t = setTimeout(() => { toast.style.display = "none"; }, 2000); }
   function escapeHtml(t) { const d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; }
-Here's *Part 2/3* of the JavaScript code. Copy and paste this after Part 1. Let me know when you're ready for Part 3 😊.
-
-```
   // Screen navigation
   function showScreen(name) {
     Object.values(screens).forEach((s) => s.classList.add("hidden"));
@@ -224,9 +218,6 @@ Here's *Part 2/3* of the JavaScript code. Copy and paste this after Part 1. Let 
     item.innerHTML = `<div class="item-header"><div><div class="item-title">${escapeHtml(s.name)}</div><div class="item-meta"><span>${new Date(s.createdAt).toLocaleDateString()}</span><span>•</span><span>${s.targets.length} targets</span><span>•</span>${statusBadge}</div></div></div><div class="item-actions">${actions}</div>`;
     surveyListEl.appendChild(item);
   }
-Here's *Part 3/3* of the JavaScript code. Copy and paste this after Part 2. This should complete the code 😊.
-
-```
   // Compass & GPS logic
   function handleOrientation(e) {
     let heading = null;
