@@ -130,17 +130,23 @@
         updateDirection();
       }
 
-      function calculateBearing(lat1, lon1, lat2, lon2) {
-        const toRad = (deg) => deg * (Math.PI / 180);
-        const lat1r = toRad(lat1), lon1r = toRad(lon1), lat2r = toRad(lat2), lon2r = toRad(lon2);
-        const dLon = lon2r - lon1r;
-        const y = Math.sin(dLon) * Math.cos(lat2r);
-        const x = Math.cos(lat1r) * Math.sin(lat2r) - Math.sin(lat1r) * Math.cos(lat2r) * Math.cos(dLon);
-        let brng = Math.atan2(y, x) * (180 / Math.PI);
-        brng = (brng + 360) % 360;
-        return brng;
-      }
+function calculateBearing(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => deg * Math.PI / 180;
+  const lat1r = toRad(lat1);
+  const lon1r = toRad(lon1);
+  const lat2r = toRad(lat2);
+  const lon2r = toRad(lon2);
 
+  const dLon = lon2r - lon1r;
+  const y = Math.sin(dLon) * Math.cos(lat2r);
+  const x = Math.cos(lat1r) * Math.sin(lat2r) - Math.sin(lat1r) * Math.cos(lat2r) * Math.cos(dLon);
+
+  let brng = Math.atan2(y, x);
+  brng = brng * 180 / Math.PI;
+  brng = (brng + 360) % 360;
+
+  return brng;
+}
       if (window.DeviceOrientationEvent) {
         window.addEventListener("deviceorientation", handleOrientation);
       } else {
