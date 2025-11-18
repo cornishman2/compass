@@ -1,211 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phone Compass</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; }
-    .container { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; max-width: 400px; width: 100%; }
-    h1 { color: #333; margin-bottom: 30px; font-size: 28px; }
-    #heading { font-size: 72px; font-weight: bold; color: #667eea; margin: 20px 0; font-family: 'Courier New', monospace; }
-    #direction { font-size: 24px; color: #666; margin: 20px 0; font-weight: 500; }
-    #debug { font-size: 11px; color: #999; margin-top: 15px; font-family: 'Courier New', monospace; text-align: left; background: #f5f5f5; padding: 10px; border-radius: 5px; max-height: 200px; overflow-y: auto; }
-    #status { margin-top: 20px; padding: 15px; border-radius: 10px; font-size: 14px; }
-    .status-waiting { background: #fff3cd; color: #856404; }
-    .status-active { background: #d4edda; color: #155724; }
-    .status-error { background: #f8d7da; color: #721c24; }
-    button { margin-top: 20px; padding: 12px 30px; font-size: 16px; background: #667eea; color: white; border: none; border-radius: 10px; cursor: pointer; }
-    button:active { background: #5568d3; }
-    #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 10px 20px; border-radius: 5px; display: none; z-index: 100; }
-    #arrow { font-size: 40px; margin: 20px auto; transition: transform 0.2s ease; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Compass</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the compass needle and gradient background */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1f2937 0%, #000000 100%);
+        }
+        .compass-needle {
+            transition: transform 0.1s ease-out; /* Smooth rotation */
+            will-change: transform;
+        }
+        .dial-label {
+            position: absolute;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #d1d5db;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+        }
+        /* Positioning of Cardinal Points */
+        .north { top: 0%; left: 50%; transform: translate(-50%, -50%); color: #f87171; }
+        .east { top: 50%; right: 0%; transform: translate(50%, -50%); }
+        .south { bottom: 0%; left: 50%; transform: translate(-50%, 50%); }
+        .west { top: 50%; left: 0%; transform: translate(-50%, -50%); }
+    </style>
 </head>
-<body>
-  <div class="container">
-    <h1>📱 Compass 22:40</h1>
-    <div id="heading">---</div>
-    <div id="direction">Point phone to target</div>
-    <div id="arrow">↑</div>
-    <div id="debug"></div>
-    <div id="status" class="status-waiting">Initializing compass...</div>
-    <button id="requestBtn" style="display:none;">Enable Compass</button>
-  </div>
-  <div id="toast"></div>
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const STORAGE_KEY = "metal_finder_v5_data";
-      const toast = document.getElementById("toast");
-      const headingEl = document.getElementById("heading");
-      const arrowEl = document.getElementById("arrow");
-      const statusEl = document.getElementById("status");
+<body class="min-h-screen flex items-center justify-center p-4">
 
-      let smoothedHeading = 0;
-      let headingSamples = [];
-      let orientationActive = false;
-      const DECLINATION_DEG = -2; 
-      const HEADING_SMOOTH = 6;
+    <div id="app" class="w-full max-w-sm bg-gray-800 p-6 rounded-3xl shadow-2xl text-white">
+        
+        <h1 class="text-3xl font-extrabold text-center mb-6 text-yellow-300">Mobile Compass MOnday 5:17</h1>
+        <p class="text-center text-sm mb-6 text-gray-400">Heading data can be unstable or require permissions, especially on iOS.</p>
 
-      function uid(p = "id") { return p + Math.random().toString(36).slice(2, 9); }
-      function load() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch (e) { return {}; } }
-      function save(noToast) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); if (!noToast) showToast("💾 Saved"); }
-      function showToast(msg) { 
-        if (!toast) return; 
-        toast.textContent = msg; 
-        toast.style.display = "block"; 
-        clearTimeout(toast._t); 
-        toast._t = setTimeout(() => { toast.style.display = "none"; }, 2000); 
-      }
+        <!-- Status & Permissions Area -->
+        <div id="status-container" class="mb-6 p-4 bg-gray-900 rounded-xl text-center">
+            <p id="status-text" class="text-sm font-semibold text-red-400">Awaiting User Action</p>
+            <button id="start-button" class="mt-4 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-full transition duration-300 shadow-lg hover:shadow-xl">
+                Start Compass
+            </button>
+        </div>
 
-      function getScreenRotationDeg() {
-        if (window.orientation === 90 || window.orientation === -90) return 90; 
-        if (window.orientation === -90) return 270;
-        return 0; 
-      }
+        <!-- Heading Display -->
+        <div class="text-center mb-6">
+            <span id="heading-display" class="text-7xl font-mono font-bold text-green-400">--</span>
+            <span class="text-3xl text-gray-500">°</span>
+        </div>
 
-      function handleOrientation(e) {
-        let heading = null;
-        if (typeof e.webkitCompassHeading === "number") {
-          heading = e.webkitCompassHeading; 
-        } else if (typeof e.alpha === "number") {
-          const rot = getScreenRotationDeg();
-          heading = (360 - ((e.alpha + rot) % 360)) % 360; 
+        <!-- Compass Visualization -->
+        <div class="flex justify-center">
+            <div class="relative w-48 h-48 bg-gray-700 border-4 border-gray-600 rounded-full flex items-center justify-center overflow-hidden">
+                
+                <!-- Cardinal Points -->
+                <div class="dial-label north">N</div>
+                <div class="dial-label east">E</div>
+                <div class="dial-label south">S</div>
+                <div class="dial-label west">W</div>
+
+                <!-- Compass Needle SVG (North pointing red, South pointing gray) -->
+                <svg id="compass-needle" class="compass-needle w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Red North half -->
+                    <path d="M50 5 L55 50 L45 50 Z" fill="#f87171" stroke="#f87171" stroke-width="1"/>
+                    <!-- Gray South half -->
+                    <path d="M50 95 L55 50 L45 50 Z" fill="#6b7280" stroke="#6b7280" stroke-width="1"/>
+                    <!-- Center Pivot -->
+                    <circle cx="50" cy="50" r="5" fill="#374151" stroke="#1f2937" stroke-width="1"/>
+                </svg>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class CompassController {
+            constructor() {
+                this.heading = 0;
+                this.startButton = document.getElementById('start-button');
+                this.statusText = document.getElementById('status-text');
+                this.headingDisplay = document.getElementById('heading-display');
+                this.compassNeedle = document.getElementById('compass-needle');
+                this.eventCounter = 0;
+
+                this.startButton.addEventListener('click', this.startCompass.bind(this));
+                
+                // Initial check for API support
+                if (!window.DeviceOrientationEvent) {
+                    this.updateStatus("Error: Device Orientation Not Supported.", 'text-yellow-400', true);
+                } else {
+                    this.updateStatus("Ready. Tap to start.", 'text-indigo-400', false);
+                }
+            }
+
+            updateStatus(message, colorClass, disableButton) {
+                this.statusText.textContent = message;
+                this.statusText.className = 'text-sm font-semibold ' + colorClass;
+                this.startButton.disabled = disableButton;
+            }
+
+            // Function to handle the actual device orientation event
+            handleOrientation(event) {
+                let currentHeading = null;
+                let referenceType = "N/A";
+                
+                this.eventCounter++;
+
+                // --- CRITICAL CROSS-BROWSER LOGIC ---
+
+                // 1. Priority 1: Check for iOS-specific WebKit property (most direct)
+                if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+                    currentHeading = event.webkitCompassHeading;
+                    referenceType = "WebKit";
+                } 
+                // 2. Priority 2: Check standard alpha value and its absolute flag
+                else if (event.absolute === true && event.alpha !== null) {
+                    // Alpha is usually counter-clockwise from North, so we use 360 - alpha
+                    currentHeading = 360 - event.alpha;
+                    referenceType = "Standard Absolute (Alpha)";
+                } 
+                // 3. Fallback: Use Alpha even if absolute is false or undefined (DANGEROUS: may be relative)
+                else if (event.alpha !== null) {
+                    // This is a last resort and often yields "game-based" relative rotation.
+                    currentHeading = 360 - event.alpha;
+                    referenceType = "Relative Alpha (Check Console)";
+                }
+
+                if (currentHeading !== null) {
+                    this.heading = (currentHeading + 360) % 360; 
+                    
+                    // Update UI
+                    this.headingDisplay.textContent = Math.round(this.heading);
+                    this.compassNeedle.style.transform = `rotate(${-this.heading}deg)`;
+
+                    // Update status on first successful read
+                    if (this.eventCounter === 1) {
+                        this.updateStatus(`Compass Active (${referenceType}). Try moving your device.`, 'text-green-400', true);
+                        this.startButton.style.display = 'none';
+                    }
+
+                    // Optional: Log raw data to help debug why a heading might be null/stuck
+                    console.log(`[Event ${this.eventCounter} - ${referenceType}] Heading: ${Math.round(this.heading)} | Alpha: ${event.alpha} | Absolute: ${event.absolute} | WebKit: ${event.webkitCompassHeading}`);
+
+                } else {
+                     // Only update status if the event is firing but data is missing
+                     if (this.eventCounter === 1) {
+                         this.updateStatus("Data is null/undefined. Try moving the device.", 'text-yellow-400', true);
+                     }
+                     console.error(`[Event ${this.eventCounter}] Event fired, but heading data is missing. Alpha: ${event.alpha}, Absolute: ${event.absolute}, WebKit: ${event.webkitCompassHeading}`);
+                }
+            }
+
+            async startCompass() {
+                this.updateStatus("Requesting permissions...", 'text-yellow-400', true);
+
+                let permissionGranted = false;
+                const eventToListen = 'deviceorientation'; // Using standard event name
+
+                // 1. Handle permissions required by iOS 13+ (Safari)
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    try {
+                        const state = await DeviceOrientationEvent.requestPermission();
+                        if (state === 'granted') {
+                            permissionGranted = true;
+                        } else {
+                            this.updateStatus("Permission denied. Cannot access sensors.", 'text-red-400', false);
+                            return;
+                        }
+                    } catch (error) {
+                         this.updateStatus(`Permission error (${error.name}).`, 'text-red-400', false);
+                         return;
+                    }
+                } else {
+                    // 2. Assume permissions not required (e.g., Android/Chrome) or already granted
+                    permissionGranted = true;
+                }
+
+                if (permissionGranted) {
+                    this.updateStatus(`Listening for '${eventToListen}' data...`, 'text-yellow-400', true);
+                    
+                    // 3. Set up the event listener for the standard event
+                    window.addEventListener(eventToListen, this.handleOrientation.bind(this));
+                    
+                    // Note: The first data point often only arrives after the user moves the device.
+                    // If you are on a desktop, this will never move. If on mobile, try moving the phone!
+                }
+            }
         }
-        if (heading === null || isNaN(heading)) {
-          orientationActive = false;
-          statusEl.className = "status-error";
-          statusEl.textContent = "Compass error. Move phone in a figure-8.";
-          return;
-        }
-        orientationActive = true;
-        heading = (heading + DECLINATION_DEG + 360) % 360;
-        headingSamples.push(heading);
-        if (headingSamples.length > HEADING_SMOOTH) headingSamples.shift();
-        let x = 0, y = 0;
-        for (const h of headingSamples) {
-          const r = (h * Math.PI) / 180;
-          x += Math.cos(r);
-          y += Math.sin(r);
-        }
-        smoothedHeading = (Math.atan2(y, x) * 180) / Math.PI;
-        smoothedHeading = (smoothedHeading + 360) % 360;
-        if (headingEl) headingEl.textContent = Math.round(smoothedHeading) + "°";
-        if (arrowEl) arrowEl.style.transform = `rotate(${smoothedHeading}deg)`;
-        statusEl.className = "status-active";
-        statusEl.textContent = "Compass active. Point at target.";
-      }
-    
-      let targetBearing = null;
-      let targetName = "Target";
-      let gpsPosition = null;
-      let directionEl =  document.getElementById("direction");
-                        
 
-      function updateDirection() {
-        if (!orientationActive || targetBearing === null || smoothedHeading === null) {
-          if (statusEl) statusEl.textContent = "Waiting for compass & target...";
-          return;
-        }
+        document.addEventListener('DOMContentLoaded', () => {
+            new CompassController();
+        });
 
-        const relativeBearing = (targetBearing - smoothedHeading + 360) % 360;
-        const dirText = relativeBearing < 10 || relativeBearing > 350 
-          ? "→ Ahead" 
-          : relativeBearing < 180 
-          ? `→ ${Math.round(relativeBearing)}° Right` 
-          : `← ${Math.round(360 - relativeBearing)}° Left`;
-
-        if (directionEl) directionEl.textContent = `To ${targetName}: ${dirText}`;
-        if (arrowEl) arrowEl.style.transform = `rotate(${targetBearing}deg)`;
-      }
-
-      function setTarget(lat, lng) {
-        if (!gpsPosition) {
-          showToast("Waiting for GPS position...");
-          return;
-        }
-        targetName = prompt("Name this target:", "Target") || "Target";
-        targetBearing = calculateBearing(gpsPosition.lat, gpsPosition.lng, lat, lng);
-        showToast(`Target set: ${targetName} (${Math.round(targetBearing)}°)`);
-        updateDirection();
-      }
-
-function calculateBearing(lat1, lon1, lat2, lon2) {
-  const toRad = (deg) => deg * Math.PI / 180;
-  const lat1r = toRad(lat1);
-  const lon1r = toRad(lon1);
-  const lat2r = toRad(lat2);
-  const lon2r = toRad(lon2);
-
-  const dLon = lon2r - lon1r;
-  const y = Math.sin(dLon) * Math.cos(lat2r);
-  const x = Math.cos(lat1r) * Math.sin(lat2r) - Math.sin(lat1r) * Math.cos(lat2r) * Math.cos(dLon);
-
-  let brng = Math.atan2(y, x);
-  brng = brng * 180 / Math.PI;
-  brng = (brng + 360) % 360;
-
-  return brng;
-}
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener("deviceorientation", handleOrientation);
-      } else {
-        statusEl.className = "status-error";
-        statusEl.textContent = "Compass not supported on this device/browser.";
-      }
-
-      if (navigator.geolocation) {
-        navigator.geolocation.watchPosition(
-          (pos) => {
-            gpsPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            if (statusEl) statusEl.textContent = `GPS locked. ${gpsPosition.lat.toFixed(5)}, ${gpsPosition.lng.toFixed(5)}`;
-          },
-          (err) => {
-            showToast(`GPS error: ${err.message}`);
-            statusEl.className = "status-error";
-            statusEl.textContent = "GPS error. Enable location & reload.";
-          },
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-        );
-      } else {
-        showToast("Geolocation not supported.");
-      }
-
-      setInterval(() => {
-        updateDirection();
-      }, 100);
-
-      // UI controls (add buttons in HTML as needed)
-      const btnSetTarget = document.createElement("button");
-      btnSetTarget.textContent = "Set Target";
-      btnSetTarget.onclick = () => {
-        const lat = parseFloat(prompt("Target latitude:"));
-        const lng = parseFloat(prompt("Target longitude:"));
-        if (!isNaN(lat) && !isNaN(lng)) setTarget(lat, lng);
-        else showToast("Invalid coordinates.");
-      };
-      document.querySelector(".container").appendChild(btnSetTarget);
-
-      const btnClearTarget = document.createElement("button");
-      btnClearTarget.textContent = "Clear Target";
-      btnClearTarget.style.marginLeft = "10px";
-      btnClearTarget.onclick = () => {
-        targetBearing = null;
-        targetName = null;
-        if (directionEl) directionEl.textContent = "No target set.";
-        showToast("Target cleared.");
-      };
-      document.querySelector(".container").appendChild(btnClearTarget);
-
-      // Cleanup & permissions note
-      window.addEventListener("beforeunload", () => {
-        if (orientationActive) {
-          // Reminder for mobile users (won't block unload)
-          showToast("Keep screen awake for compass stability.");
-        }
-      });
-    });
-  </script>
+    </script>
 </body>
 </html>
-```
